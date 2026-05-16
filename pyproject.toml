@@ -1,0 +1,30 @@
+[project]
+name = "nano-llava"
+version = "0.1.0"
+description = "Minimal LLaVA reproduction: frozen CLIP + frozen Qwen + a trained projector"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { file = "LICENSE" }
+dependencies = [
+    # CUDA 12.4 build - the cluster A100 nodes run a 12.4 driver. The default
+    # PyPI torch ships CUDA 13 wheels, which silently fall back to CPU here.
+    "torch==2.6.0",
+    "torchvision==0.21.0",
+    "transformers>=4.46",   # Qwen2.5 support
+    "peft>=0.13",           # LoRA adapters for stage 2
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "sentencepiece",
+    "pillow",
+    "numpy",
+    "wandb>=0.16",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

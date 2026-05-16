@@ -1,0 +1,12 @@
+# pip fallback (prefer `uv sync`). CUDA 12.4 build for the cluster A100 nodes.
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0
+torchvision==0.21.0
+transformers>=4.46
+peft>=0.13
+datasets>=3.0
+accelerate>=1.0
+sentencepiece
+pillow
+numpy
+wandb>=0.16

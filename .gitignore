@@ -1,0 +1,17 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+
+# Datasets & training artifacts
+data/
+checkpoints/
+samples/
+
+# Outputs
+results.md
+slurm-*.out
+wandb/
+
+# Keep curated README assets, ignore stray ones
+assets/*.jpg
