@@ -104,11 +104,12 @@ class NanoLLaVA(nn.Module):
 
     @torch.no_grad()
     def generate(self, input_ids, attention_mask, pixel_values,
-                 max_new_tokens=256):
+                 max_new_tokens=256, do_sample=False, temperature=1.0):
         embeds = self._merge(input_ids, pixel_values)
         return self.llm.generate(
             inputs_embeds=embeds, attention_mask=attention_mask,
-            max_new_tokens=max_new_tokens, do_sample=False,
+            max_new_tokens=max_new_tokens, do_sample=do_sample,
+            temperature=temperature,
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
         )

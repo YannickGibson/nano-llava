@@ -27,7 +27,7 @@ uv run python train.py --stage 2 --wandb        # with live W&B tracking
 uv run python chat.py --image photo.jpg --prompt "What is happening here?"
 uv run python eval.py                           # VQAv2 accuracy
 uv run python ablation.py                       # stage-2 on/off comparison
-uv run python grid.py                           # qualitative example grid
+uv run python grid.py                           # inspect answers on held-out images
 ```
 
 No `uv`? Fall back to `pip install -r requirements.txt` then drop the
@@ -70,7 +70,7 @@ whole run finishes in under an hour on one A100.
 | `data_utils.py` | Stage datasets, Qwen chat formatting, image-token expansion, collator |
 | `train.py` | Two-stage training loop (`--stage 1|2`), LoRA via `peft`, bf16 |
 | `chat.py` | Run a trained model on an image + prompt; `--interactive` mode |
-| `grid.py` | Render the qualitative example grid for this README |
+| `grid.py` | Inspect model answers on held-out images; `--samples` for candidates |
 | `eval.py` | VQAv2 soft-accuracy; `compute_vqa_accuracy()` is reusable |
 | `ablation.py` | Stage-2 on/off comparison; writes `results.md` |
 
@@ -82,7 +82,7 @@ directly.
 
 | Stage | Dataset | Used for |
 |---|---|---|
-| 1 | [`nlphuji/flickr30k`](https://huggingface.co/datasets/nlphuji/flickr30k) | image-caption pretraining |
+| 1 | [`lmms-lab/flickr30k`](https://huggingface.co/datasets/lmms-lab/flickr30k) | image-caption pretraining |
 | 2 | [`HuggingFaceH4/llava-instruct-mix-vsft`](https://huggingface.co/datasets/HuggingFaceH4/llava-instruct-mix-vsft) | visual instruction tuning |
 
 Both download from the Hugging Face Hub on first run (~20GB total) and are
@@ -93,8 +93,10 @@ nothing is fully downloaded for eval.
 ## Experiment tracking
 
 Pass `--wandb` to `train.py` to log loss and learning rate to
-[Weights & Biases](https://wandb.ai). Without the flag, training runs with no
-account needed.
+[Weights & Biases](https://wandb.ai), plus a periodic **sample panel** - the
+model's current answers on a few held-out images, every `--sample-every` steps -
+so the loss curve is backed by something readable. Without the flag, training
+runs with no account needed.
 
 ## Results
 
@@ -104,22 +106,37 @@ without LoRA instruction tuning.
 
 | model | VQAv2 accuracy |
 |---|---|
-| stage 1 only (projector) | 0.2243 |
-| stage 1 + 2 (projector + LoRA) | **0.3825** |
+| stage 1 only (projector) | 0.180 |
+| stage 1 + 2 (projector + LoRA) | **0.320** |
 
 **Takeaways**
 - Visual instruction tuning is the decisive step: adding stage 2 lifts accuracy
-  by **+15.8 points** (0.224 -> 0.383) over the projector-only model. This is
-  the paper's core claim, reproduced at 1/14th the LLM scale.
-- The stage-1 model already scores 0.224 - well above chance - so the projector
+  by **+14 points** (0.180 -> 0.320) over the projector-only model. This is the
+  paper's core claim, reproduced at 1/14th the LLM scale.
+- The stage-1 model already scores 0.180 - well above chance - so the projector
   alone does learn to ground vision in language; it just answers like a
   captioner rather than a question-answerer until stage 2.
 - Absolute accuracy is modest because the LLM is 0.5B and trained briefly on
-  subset data. The informative result is the *gap*, which cleanly attributes
-  the gain to instruction tuning.
+  subset data, and run-to-run variance is ~+/-0.03 at this scale. The
+  informative result is the *gap*, which cleanly attributes the gain to
+  instruction tuning.
 
-End-to-end training was ~10 min (stage 1) + ~36 min (stage 2) on one A100 -
+End-to-end training was ~11 min (stage 1) + ~36 min (stage 2) on one A100 -
 comfortably inside a single-GPU session.
+
+## Compute footprint
+
+Measured on one A100-40GB (bf16).
+
+| Phase | Peak VRAM | Speed |
+|---|---|---|
+| Stage 1 training | ~26 GB | ~11 min (projector only) |
+| Stage 2 training | ~26 GB | ~36 min (projector + LoRA) |
+| Inference | ~1.4 GB | ~2.3 s per answer (<=64 tokens) |
+
+Stage 1 uses as much memory as stage 2 even though it trains far fewer
+parameters: the projector's gradient still flows through the full frozen LLM,
+so every layer's activations are retained. Inference fits on almost any GPU.
 
 ## Scope notes
 
@@ -128,6 +145,13 @@ trains in a VAE-free pixel pipeline over many GPU-hours. nano-LLaVA is a
 deliberately small, single-GPU reproduction: a 0.5B LLM, subset data, and LoRA
 instead of full fine-tuning. The architecture and two-stage recipe are
 faithful; the scale is not.
+
+The goal here is a clean, readable reproduction of the *method*, not a
+competitive model. Stronger small VLMs (e.g. `qnguyen3/nanoLLaVA`) score far
+higher on VQAv2 - but they train on the full LLaVA-1.5 mixture, which includes
+the VQAv2 *training* set itself plus other academic VQA data, so their score is
+largely in-distribution. nano-LLaVA never sees a VQA-format example, so its
+number here is a stricter zero-shot measurement and is not directly comparable.
 
 ## License
 

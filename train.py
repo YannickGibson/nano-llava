@@ -43,6 +43,28 @@ def add_lora(model, rank):
     model.llm.enable_input_require_grads()   # let grads flow under checkpointing
 
 
+@torch.no_grad()
+def log_sample_panel(model, processor, examples, device, run, step):
+    """Render the model's current answers on held-out images, log to W&B.
+
+    The VLM analogue of the per-epoch sample grid in the sibling DiT repo:
+    it turns the loss curve into something you can actually read.
+    """
+    import wandb
+
+    from chat import answer
+    from grid import save_qualitative_grid
+
+    model.eval()
+    rows = [(img, prompt, answer(model, processor, img, prompt, device,
+                                 max_new_tokens=64))
+            for img, prompt in examples]
+    model.train()
+    path = f"samples/step_{step:05d}.png"
+    save_qualitative_grid(rows, path)
+    run.log({"samples": wandb.Image(path)}, step=step)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", type=int, choices=[1, 2], required=True)
@@ -56,6 +78,8 @@ def main():
                     help="cap dataset size (0 = stage default)")
     ap.add_argument("--max-steps", type=int, default=0,
                     help="stop after N optimizer steps (0 = no limit)")
+    ap.add_argument("--sample-every", type=int, default=200,
+                    help="steps between W&B sample panels (needs --wandb)")
     ap.add_argument("--out", default="checkpoints")
     ap.add_argument("--wandb", action="store_true")
     ap.add_argument("--wandb-project", default="nano-llava")
@@ -116,6 +140,14 @@ def main():
     if run is not None:
         run.summary["trainable_millions"] = trainable
 
+    # Fixed held-out images for the periodic W&B sample panel.
+    panel_examples = None
+    if run is not None:
+        from grid import PROMPTS, _load_examples
+
+        os.makedirs("samples", exist_ok=True)
+        panel_examples = list(zip(_load_examples(3), PROMPTS[:3]))
+
     # -- training loop --------------------------------------------------------
     step = 0
     model.train()
@@ -136,6 +168,9 @@ def main():
                     run.log({"loss": shown, "lr": lr, "epoch": epoch}, step=step)
                 if step % 50 == 0:
                     print(f"epoch {epoch} step {step} loss {shown:.4f}")
+                if run is not None and step % args.sample_every == 0:
+                    log_sample_panel(model, processor, panel_examples,
+                                     device, run, step)
                 if args.max_steps and step >= args.max_steps:
                     break
         if args.max_steps and step >= args.max_steps:

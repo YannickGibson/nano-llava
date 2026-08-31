@@ -33,13 +33,19 @@ def load_trained(ckpt_dir, device, use_lora=True, projector_depth=2):
 
 
 @torch.no_grad()
-def answer(model, processor, image, prompt, device, max_new_tokens=256):
-    """Generate the assistant's reply to `prompt` about `image`."""
+def answer(model, processor, image, prompt, device, max_new_tokens=256,
+           do_sample=False, temperature=1.0):
+    """Generate the assistant's reply to `prompt` about `image`.
+
+    do_sample=True draws a varied (non-greedy) reply, used by grid.py to
+    produce several candidates per image to pick from.
+    """
     input_ids, attn, pixels = build_inference_inputs(
         model.tokenizer, processor, image, prompt
     )
     input_ids, attn, pixels = input_ids.to(device), attn.to(device), pixels.to(device)
-    out = model.generate(input_ids, attn, pixels, max_new_tokens=max_new_tokens)
+    out = model.generate(input_ids, attn, pixels, max_new_tokens=max_new_tokens,
+                         do_sample=do_sample, temperature=temperature)
     return model.tokenizer.decode(out[0], skip_special_tokens=True).strip()
 
 
