@@ -1,4 +1,4 @@
-# nano-LLaVA: a minimal vision-language model
+# Nano-LLaVA: A Minimal Vision-Language Model
 
 A small **vision-language model** that answers questions about images, trained
 from scratch on a single GPU.
